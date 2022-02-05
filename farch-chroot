@@ -1,0 +1,193 @@
+#!/bin/bash
+
+
+keyboardLayout=$(cat /root/keyboardLayout)
+
+
+# configuring locale, keymap and language
+configure(){
+ 
+  zone=$(dialog --title "Region" --menu "Select your region" 15 30 7 1 Africa 2 America 3 Asia 4 Australia 5 Brazil 6 Canada 7 Europe 3>&1 1>&2 2>&3 3>&-)
+ 
+  city=$(dialog --title "City" --menu "Select your city" 15 30 20 1 Amsterdam 2 Athens 3 Belgrade 4 Berlin 5 Brussels 6 Budapest 7 Copenhagen 8 Dublin 9 Helsinki 10 Kiev 11 London 12 Madrid 13 Moscow 14 Oslo 15 Paris 16 Prague 17 Rome 18 Stockholm 19 Tallinn 20 Warsaw 3>&1 1>&2 2>&3 3>&-)
+
+  case "$zone" in
+    1) zone="Africa";;
+    2) zone="America";;
+    3) zone="Asia";;
+    4) zone="Australia";;
+    5) zone="Brazil";;
+    6) zone="Canada";;
+    7) zone="Europe";;
+  esac
+
+  case "$city" in
+    1) city="Amsterdam";;
+    2) city="Athens";;
+    3) city="Belgrade";;
+    4) city="Berlin";;
+    5) city="Brussels";;
+    6) city="Budapest";;
+    7) city="Copenhagen";;
+    8) city="Dublin";;
+    9) city="Helsinki";;
+    10) city="Kiev";;
+    11) city="London";;
+    12) city="Madrid";;
+    13) city="Moscow";;
+    14) city="Oslo";;
+    15) city="Paris";;
+    16) city="Prague";;
+    17) city="Rome";;
+    18) city="Stockholm";;
+    19) city="Tallinn";;
+    20) city="Warsaw";;
+  esac
+
+  dialog --title "Confirmation" --yesno "Is this correct $zone/$city?" 8 30 3>&1 1>&2 2>&3 3>&-
+  [[ "$?" -eq 1 ]] && return 1
+
+  ln -sf /usr/share/zoneinfo/$zone/$city /etc/localtime >/dev/null 2>&1
+
+  hwclock --systohc >/dev/null 2>&1
+
+  dialog --title "Localization" --msgbox "Setting up locale..." 6 30
+  
+  # default to English
+  echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen
+  locale-gen >/dev/null 2>&1
+
+  keymapNumber=$(dialog --title "Keyboard Layout" --yesno "Do you wish to use the same keymap as you specified in the beginning ($keyboardLayout) ?" 8 30 3>&1 1>&2 2>&3 3>&3-)
+
+  if [[ "$?" -ne 0 ]]; then
+    keyboardLayout2=$(dialog --title "Keyboard Layout" --inputbox "Enter your keyboard layout: " 8 30 3>&1 1>&2 2>&3 3>&-)
+    while [[ -z "$keyboardLayout2" ]]; do
+      keyboardLayout2=$(dialog --title "Keyboard Layout" --inputbox "Enter your keyboard layout: " 8 30 3>&1 1>&2 2>&3 3>&-)
+    done
+    echo "KEYMAP=$keyboardLayout2" > /etc/vconsole.conf
+  else
+    echo "KEYMAP=$keyboardLayout" > /etc/vconsole.conf
+  fi
+
+}
+
+
+# setup hostname and network 
+configure-network(){
+
+  hostname=$(dialog --title "Configuring Network" --inputbox "Give your computer a name:" 7 30 3>&1 1>&2 2>&3 3>&-)
+  while [[ -z "$hostname" ]]; do
+    hostname=$(dialog --title "Configuring Network" --inputbox "Give your computer a name:" 7 30 3>&1 1>&2 2>&3 3>&-)
+  done
+  
+  echo "$hostname" > /etc/hostname
+
+  # setting up /etc/hosts just in case
+  echo -n $'\n127.0.0.1\tlocalhost' >> /etc/hosts
+  echo -n $'\n::1\t\tlocalhost' >> /etc/hosts
+  echo -n $'\n127.0.1.1\t'$hostname >> /etc/hosts
+  echo -n $'' >> /etc/hosts
+
+}
+
+
+# setting up user stuff 
+user-setup(){
+
+  while [[ 1 ]]; do
+    rootPassword1=$(dialog --title "Setting up root password" --passwordbox "Create a root password:\n(at least four characters)" 10 30 3>&1 1>&2 2>&3 3>&-) 
+    rootPassword2=$(dialog --title "Setting up root password" --passwordbox "Confirm the password:" 8 30 3>&1 1>&2 2>&3 3>&-)
+    [[ "$rootPassword1" == "$rootPassword2" && "${#rootPassword1}" > 4 ]] && break
+  done
+
+  passwd < <(echo "$rootPassword1"; echo "$rootPassword1") >/dev/null 2>&1
+
+  username=$(dialog --title "Setting up a user" --inputbox "Create a new user:" 10 30 3>&1 1>&2 2>&3 3>&-)
+  while [[ -z "$username" ]]; do
+    username=$(dialog --title "Setting up a user" --inputbox "Create a new user:" 10 30 3>&1 1>&2 2>&3 3>&-)
+  done
+ 
+  useradd -m "$username" >/dev/null 2>&1
+
+  while [[ 1 ]]; do
+    userPassword1=$(dialog --title "Setting up a user password" --passwordbox "Create a user password:\n(at least four characters)" 10 30 3>&1 1>&2 2>&3 3>&-)
+    userPassword2=$(dialog --title "Setting up a user password" --passwordbox "Confirm the password:" 8 30 3>&1 1>&2 2>&3 3>&-)
+    [[ "$userPassword1" == "$userPassword2" && "${#userPassword1}" > 4 ]] && break
+  done
+
+  passwd "$username" < <(echo "$userPassword1"; echo "$userPassword1") >/dev/null 2>&1
+
+  usermod -aG wheel,audio,video,optical,storage,http "$username" >/dev/null 2>&1
+
+}
+
+
+# configure sudo
+configure-sudo(){
+
+  pacman -S --noconfirm sudo >/dev/null 2>&1
+  echo "%wheel ALL=(ALL) ALL" >> /etc/sudoers
+
+  # oddly, root doesn't get write access by default
+  chmod u+w /etc/sudoers
+
+}
+
+
+# installing grub
+boot-loader(){ 
+  
+  dialog --title "Grub" --msgbox "Installing and setting up GRUB..." 8 30
+
+  if [[ -e /root/efiSystem ]]; then
+    pacman -S --noconfirm grub efibootmgr >/dev/null 2>&1
+    mkdir /boot/EFI >/dev/null 2>&1
+    mount /dev/sda1 /boot/EFI >/dev/null 2>&1
+    grub-install --target=x86_64-efi --efi-directory=/boot/EFI >/dev/null 2>&1
+  else
+    pacman -S --noconfirm grub >/dev/null 2>&1
+    partitionDisk=$(cat /root/partitionDisk)
+    grub-install --target=i386-pc /dev/$partitionDisk >/dev/null 2>&1
+  fi
+
+  grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1
+
+}
+
+
+# finish the installation
+finish(){
+
+  dialog --title "Finishing up" --msgbox "Installing packages..." 6 30
+  pacman -S --noconfirm networkmanager >/dev/null 2>&1
+  systemctl enable NetworkManager >/dev/null 2>&1
+
+  # clean up
+  rm /root/keyboardLayout
+  rm /root/partitionDisk
+  
+  dialog --title "Finishing Installation" --msgbox "Installation finished successfully!" 6 30
+
+  exit
+
+}
+
+
+# install dialog
+pacman -S dialog --noconfirm >/dev/null 2>&1
+ 
+while [[ 1 ]]; do
+  configure
+  [[ "$?" -eq 0 ]] && break
+done
+
+configure-network
+
+user-setup
+
+configure-sudo
+
+boot-loader
+
+finish
+

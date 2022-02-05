@@ -1,0 +1,14 @@
+xorg
+xorg-server
+xorg-xinit
+pulseaudio
+ttf-font-awesome
+ttf-inconsolata
+ttf-joypixels
+ttf-liberation
+ttf-linux-libertine
+noto-fonts
+noto-fonts-cjk
+noto-fonts-emoji
+vim
+nano

@@ -1,0 +1,181 @@
+#!/bin/bash
+# Frans' Arch Linux installer(Farch).
+
+
+efiSystem=0
+
+partitionDisk=0
+
+
+# start here
+welcome(){
+ 
+  dialog --title "Welcome" --msgbox "Welcome to Farch!\nFarch will install Arch Linux for you." 8 30
+  dialog --title "Basics" --msgbox "Let's start by setting up some basic stuff..." 8 30
+
+  keyboardLayout=$(dialog --title "Keyboard Layout" --inputbox "Enter your keyboard layout:\nE.g. us - for English.
+  \nThis can be changed later." 12 30 3>&1 1>&2 2>&3 3>&-)
+
+  [[ "$?" -eq 1 || -z "$keyboardLayout" ]] && welcome
+  
+  echo "$keyboardLayout" > keyboardLayout
+  loadkeys $keyboardLayout
+  ls /sys/firmware/efi/efivars >/dev/null 2>&1 && efiSystem=1 && touch efiSystem
+  timedatectl set-ntp true >/dev/null 2>&1
+
+}
+
+
+# disk partitioning
+partition-disk(){
+
+  dialog --title "Disk Partitioning" --msgbox "Let's partion the drives!" 7 30
+   
+  OLDIFS=$IFS
+  IFS=$'\n'
+  arrayIndex=0
+  diskArray=(  )
+
+
+  for i in $(grep -v NAME <(lsblk)); do
+    diskArray[$arrayIndex]=${i%% *}
+    ((arrayIndex++))
+  done
+
+  IFS=$OLDIFS
+ 
+
+    case $arrayIndex in
+      1) disk=$(dialog --menu "Disk partitioning" 15 30 1 1 "${diskArray[0]}" 3>&1 1>&2 2>&3 3>&-);;
+      2) disk=$(dialog --menu "Disk partitioning" 15 30 2 1 "${diskArray[0]}" 2 "${diskArray[1]}" 3>&1 1>&2 2>&3 3>&-);;
+      3) disk=$(dialog --menu "Disk partitioning" 15 30 3 1 "${diskArray[0]}" 2 "${diskArray[1]}" 3 "${diskArray[2]}" 3>&1 1>&2 2>&3 3>&-);;
+    esac
+
+
+  [[ "$?" -eq 1 || -z "$disk" ]] && return 1
+
+  case $disk in
+    1) partitionDisk=${diskArray[0]};;
+    2) partitionDisk=${diskArray[1]};;
+    3) partitionDisk=${diskArray[2]};;
+  esac
+
+   
+  dialog --title "Check" --yesno "WARNING! Are you sure you want to partition $partitionDisk?\nEVERYTHING stored on $partitionDisk will be overwritten." 10 30 3>&1 1>&2 2>&3 3>&-
+
+
+  # return if "no"
+  [[ "$?" -eq 1 ]] && return 1
+  
+  echo "$partitionDisk" > partitionDisk
+ 
+  # partitioning, making and setting up swap partition
+  # 2 gigabyte swap size by default
+
+  if [[ "$efiSystem" -eq 1 ]]; then
+    fdisk /dev/$partitionDisk < <(echo $'g\nn\n1\n\n+550M\nn\n2\n\n+2G\nn\n3\n\n\nt\n1\n1\nt\n2\n19\nw') >/dev/null 2>&1
+    mkfs.ext4 /dev/${partitionDisk}3 >/dev/null 2>&1
+    mkswap /dev/${partitionDisk}2 >/dev/null 2>&1
+    mkfs.fat -F 32 /dev/${partitionDisk}1 >/dev/null 2>&1
+  else
+    fdisk /dev/$partitionDisk < <(echo $'o\nn\np\n1\n\n+2G\nn\np\n2\n\n\nt\n1\n82\nw') >/dev/null 2>&1
+    mkfs.ext4 /dev/${partitionDisk}2 >/dev/null 2>&1
+    mkswap /dev/${partitionDisk}1 >/dev/null 2>&1
+  fi
+
+  dialog --title "Disk Partitioning" --msgbox "Disk Partitioning Successful!" 7 30
+
+}
+
+
+# mount the filesystem and turn the swap partition on
+mount-filesystems(){
+
+  dialog --title "Mounting Filesystems" --msgbox "Mounting the filesystems." 7 30
+
+  if [[ "$efiSystem" -eq 1 ]]; then
+    mount /dev/${partitionDisk}3 /mnt >/dev/null 2>&1
+    swapon /dev/${partitionDisk}2 >/dev/null 2>&1
+  else
+    mount /dev/${partitionDisk}2 /mnt >/dev/null 2>&1
+    swapon /dev/${partitionDisk}1 >/dev/null 2>&1
+  fi
+
+}
+
+
+# install the main and essential packages
+main-install(){
+  dialog --title "Installing Packages" --msgbox "Installing essential packages.\nThis might take a while depending on your internet connection.\nPlease be patient." 10 30
+
+  pacstrap /mnt base linux linux-firmware >/dev/null 2>&1
+}
+
+
+# setting up chroot
+init-chroot(){
+
+  # copy the second installer to the chrooted space
+  cp ./farch-chroot /mnt/root/farch-chroot >/dev/null 2>&1
+  chmod +x /mnt/root/farch-chroot >/dev/null 2>&1
+
+  # copy the third installer to the chrooted space
+  cp ./farch-post /mnt/root/farch-post >/dev/null 2>&1
+  chmod +x /mnt/root/farch-post >/dev/null 2>&1 
+
+  # copy the name of the disk to the chrooted space
+  cp ./partitionDisk /mnt/root/partitionDisk >/dev/null 2>&1
+ 
+  # in case the user wants to use the same layout
+  cp ./keyboardLayout /mnt/root/keyboardLayout >/dev/null 2>&1
+
+  # in case they have an EFI system
+  cp ./efiSystem /mnt/root/efiSystem >/dev/null 2>&1
+
+  # pkglist
+  cp ./pkglist.txt /mnt/root/pkglist.txt >/dev/null 2>&1
+
+  # start second script in chrooted space
+  arch-chroot /mnt /root/farch-chroot
+  # start third script in chrooted space
+  dialog --title "Post-Installation" --yesno "Do you wish to do the post installation? This installs the display server, sound server, fonts and more." 10 30
+  [[ "$?" -eq 0 ]] && arch-chroot /mnt /root/farch-post
+
+}
+
+# finish the installation
+finish(){
+
+  # unmount partitions
+  [[ "$efiSystem" -eq 1 ]] && umount /mnt/boot/EFI >/dev/null 2>&1
+  umount /mnt >/dev/null 2>&1
+
+  dialog --title "Installation Complete" --yesno "Installation completed! Do you wish to shutdown now?\n(Recommended)" 8 30 3>&1 1>&2 2>&3 3>&-
+  [[ "$?" -eq 0 ]] && shutdown now
+}
+
+
+
+# installing necessary things
+pacman -Syu --noconfirm >/dev/null 2>&1
+pacman -S dialog --noconfirm >/dev/null 2>&1
+
+welcome
+
+while [[ 1 ]]; do
+  partition-disk
+  [[ "$?" -eq 0 ]] && break
+done
+
+mount-filesystems
+
+main-install
+
+dialog --title "File System Table" --msgbox "Setting up fstab..." 6 30 3>&1 1>&2 2>&3 3>&-
+
+genfstab -U /mnt >> /mnt/etc/fstab
+
+init-chroot
+
+finish
+

@@ -1,0 +1,53 @@
+#!/bin/bash
+
+
+# main packages
+main-install(){
+
+  dialog --title "Installing" --msgbox "Installing the Xorg display server and fonts..." 7 30
+  pacman -S --needed --noconfirm - < /root/pkglist.txt >/dev/null 2>&1
+
+  dialog --title "Virtualbox" --yesno "Is this being run in Virtualbox?" 8 30
+
+  if [[ "$?" == 0 ]]; then
+    pacman -S --noconfirm virtualbox-guest-utils >/dev/null 2>&1
+ else
+    dialog --title "GPU Drivers" --yesno "Do you wish to install the NVIDIA proprietary drivers?" 10 30
+    pacman -S --noconfirm nvidia nvidia-utils >/dev/null 2>&1 
+  fi
+
+}
+
+
+# optional packages
+opt-install(){
+
+  username=$(ls /home)
+  touch /home/$username/.xinitrc
+  chown $username:$username /home/$username/.xinitrc
+  chmod +x /home/$username/.xinitrc
+
+  dialog --title "Desktop Environment" --yesno "Do you wish to install a Desktop Environment/Window Manager now?\nYou can also install one later and finish this install now." 11 30
+
+  if [[ "$?" == 0 ]]; then
+    choice=$(dialog --title "Desktop Environment" --menu "Choose a Desktop Environment/Window Manager:" 20 35 3 1 "i3" 2 "Qtile" 3 "More will be added soon" 3>&1 1>&2 2>&3 3>&-)
+    
+    case "$choice" in
+      1) dialog --title "Installing" --msgbox "Installing i3" 7 30; pacman -S --noconfirm i3-gaps >/dev/null 2>&1; \
+        echo $'#!/bin/sh\nexec i3' > /home/$username/.xinitrc;;
+      2) dialog --title "Installing" --msgbox "Installing Qtile" 7 30; pacman -S --noconfirm qtile python >/dev/null 2>&1; \
+        echo $'#!/bin/sh\nexec qtile' > /home/$username/.xinitrc;;
+    esac
+  fi
+
+  dialog --title "Done" --msgbox "Post installation done! You should now be able to do \"startx\" to start your WM(Window Manager) or DE(Desktop Environment) if you chose to install one.." 11 30 
+
+}
+
+dialog --title "Post-Installation" --msgbox "Post-Installation started!" 7 30 
+
+main-install
+
+opt-install
+
+exit
