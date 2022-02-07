@@ -60,6 +60,13 @@ partition-disk(){
     3) partitionDisk=${diskArray[2]};;
   esac
 
+
+  swapSize=$(dialog --title "Swap" --menu "Enter the size of the swap partition\n(2 - 4 GB recommended)" 18 30 4 1 1gb 2 2gb 3 3gb 4 4gb 5 5gb 6 6gb 3>&1 1>&2 2>&3 3>&-)
+
+  case "$swapSize" in
+    1) swapSize='+1G';; 2)swapSize='+2G';; 3)swapSize='+3G';; 4)swapSize='+4G';; 5)swapSize='+5G';; 6)swapSize='+6G';;
+  esac
+
    
   dialog --title "Check" --yesno "WARNING! Are you sure you want to partition $partitionDisk?\nEVERYTHING stored on $partitionDisk will be overwritten." 10 30 3>&1 1>&2 2>&3 3>&-
 
@@ -70,15 +77,16 @@ partition-disk(){
   echo "$partitionDisk" > partitionDisk
  
   # partitioning, making and setting up swap partition
-  # 2 gigabyte swap size by default
 
   if [[ "$efiSystem" -eq 1 ]]; then
-    fdisk /dev/$partitionDisk < <(echo $'g\nn\n1\n\n+550M\nn\n2\n\n+2G\nn\n3\n\n\nt\n1\n1\nt\n2\n19\nw') >/dev/null 2>&1
+    #fdisk /dev/$partitionDisk < <(echo $'g\nn\n1\n\n+550M\nn\n2\n\n+2G\nn\n3\n\n\nt\n1\n1\nt\n2\n19\nw') >/dev/null 2>&1
+    fdisk /dev/$partitionDisk < <(echo $'g\nn\n1\n\n+550M\nn\n2\n\n'$swapSize$'\nn\n3\n\n\nt\n1\n1\nt\n2\n19\nw') >/dev/null 2>&1
     mkfs.ext4 /dev/${partitionDisk}3 >/dev/null 2>&1
     mkswap /dev/${partitionDisk}2 >/dev/null 2>&1
     mkfs.fat -F 32 /dev/${partitionDisk}1 >/dev/null 2>&1
   else
-    fdisk /dev/$partitionDisk < <(echo $'o\nn\np\n1\n\n+2G\nn\np\n2\n\n\nt\n1\n82\nw') >/dev/null 2>&1
+    #fdisk /dev/$partitionDisk < <(echo $'o\nn\np\n1\n\n+2G\nn\np\n2\n\n\nt\n1\n82\nw') >/dev/null 2>&1
+    fdisk /dev/$partitionDisk < <(echo $'o\nn\np\n1\n\n'$swapSize$'\nn\np\n2\n\n\nt\n1\n82\nw') >/dev/null 2>&1
     mkfs.ext4 /dev/${partitionDisk}2 >/dev/null 2>&1
     mkswap /dev/${partitionDisk}1 >/dev/null 2>&1
   fi
@@ -134,6 +142,9 @@ init-chroot(){
 
   # pkglist
   cp ./pkglist.txt /mnt/root/pkglist.txt >/dev/null 2>&1
+
+  # optional-pkglist
+  cp ./optional-pkglist.txt /mnt/root/optional-pkglist.txt >/dev/null 2>&1
 
   # start second script in chrooted space
   arch-chroot /mnt /root/farch-chroot

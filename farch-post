@@ -4,17 +4,21 @@
 # main packages
 main-install(){
 
-  dialog --title "Installing" --msgbox "Installing the Xorg display server and fonts..." 7 30
+  dialog --title "Installing" --msgbox "Installing the Xorg display server, Pulseaudio sound server and fonts..." 7 30
   pacman -S --needed --noconfirm - < /root/pkglist.txt >/dev/null 2>&1
 
+  grep -i virtualbox <(lspci) >/dev/null 2>&1
 
-  dialog --title "Virtualbox" --yesno "Is this being run in Virtualbox?" 8 30
-
-  if [[ "$?" == 0 ]]; then
+  if [[ "$?" -eq 0 ]]; then
     pacman -S --noconfirm virtualbox-guest-utils >/dev/null 2>&1
  else
-    dialog --title "GPU Drivers" --yesno "Do you wish to install the NVIDIA proprietary drivers?" 10 30
-    pacman -S --noconfirm nvidia nvidia-utils >/dev/null 2>&1 
+    driverChoice=$(dialog --title "GPU Drivers" --menu "Select your drivers:" 15 30 1 "amd(open source)" 2 "nvidia(proprietary)" 3 "nouveau(open source)" 3>&1 1>&2 2>&3 3>&-)
+
+    case "$driverChoice" in
+      1) pacman -S --noconfirm xf86-video-amdgpu mesa >/dev/null 2>&1;;
+      2) pacman -S --noconfirm nvidia nvidia-utils >/dev/null 2>&1;;
+      3) pacman -S --noconfirm xf86-video-nouveau mesa >/dev/null 2>&1;;
+    esac
   fi
 
 }
@@ -22,10 +26,12 @@ main-install(){
 
 # setup .xinitrc
 xinitrc(){
+
   username=$(ls /home)
   touch /home/$username/.xinitrc
   chown $username:$username /home/$username/.xinitrc
   chmod +x /home/$username/.xinitrc
+
 }
 
 
@@ -37,13 +43,17 @@ opt-install(){
   
   dialog --title "Desktop Environment" --yesno "Do you wish to install a Desktop Environment/Window Manager now?\nYou can also install one later and finish this install now." 11 30
 
-  if [[ "$?" == 0 ]]; then
-    choice=$(dialog --title "Desktop Environment" --menu "Choose a Desktop Environment/Window Manager:" 20 35 3 1 "i3" 2 "Qtile" 3 "More will be added soon" 3>&1 1>&2 2>&3 3>&-)
+  if [[ "$?" -eq 0 ]]; then
+    choice=$(dialog --title "Desktop Environment" --menu "Choose a Desktop Environment/Window Manager:" 20 35 5 1 "Xfce" 2 "Kde" 3 "i3" 4 "Qtile" 5 "More will be added soon" 3>&1 1>&2 2>&3 3>&-)
     
     case "$choice" in
-      1) dialog --title "Installing" --msgbox "Installing i3" 7 30; pacman -S --noconfirm i3-gaps >/dev/null 2>&1; \
+      1) dialog --title "Installing" --msgbox "Installing Xfce" 7 30; pacman -S --noconfirm xfce4 xfce4-goodies >/dev/null 2>&1; \
+        echo $'#!/bin/sh\nexec startxfce4' > /home/$username/.xinitrc;;
+      2) dialog --title "Installing" --msgbox "Installing Kde" 7 30; pacman -S --noconfirm plasma-meta >/dev/null 2>&1; \
+        echo $'#!/bin/sh\nexec startplasma-x11' > /home/$username/.xinitrc;;
+      3) dialog --title "Installing" --msgbox "Installing i3" 7 30; pacman -S --noconfirm i3-gaps >/dev/null 2>&1; \
         echo $'#!/bin/sh\nexec i3' > /home/$username/.xinitrc;;
-      2) dialog --title "Installing" --msgbox "Installing Qtile" 7 30; pacman -S --noconfirm qtile python >/dev/null 2>&1; \
+      4) dialog --title "Installing" --msgbox "Installing Qtile" 7 30; pacman -S --noconfirm qtile python >/dev/null 2>&1; \
         echo $'#!/bin/sh\nexec qtile' > /home/$username/.xinitrc;;
     esac
   fi
