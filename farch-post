@@ -7,6 +7,7 @@ main-install(){
   dialog --title "Installing" --msgbox "Installing the Xorg display server and fonts..." 7 30
   pacman -S --needed --noconfirm - < /root/pkglist.txt >/dev/null 2>&1
 
+
   dialog --title "Virtualbox" --yesno "Is this being run in Virtualbox?" 8 30
 
   if [[ "$?" == 0 ]]; then
@@ -19,14 +20,21 @@ main-install(){
 }
 
 
-# optional packages
-opt-install(){
-
+# setup .xinitrc
+xinitrc(){
   username=$(ls /home)
   touch /home/$username/.xinitrc
   chown $username:$username /home/$username/.xinitrc
   chmod +x /home/$username/.xinitrc
+}
 
+
+# optional packages
+opt-install(){
+
+  dialog --title "Optional Packages" --yesno "Do you wish to install the author's preferred programs?" 8 30
+  [[ "$?" -eq 0 ]] && pacman -S --noconfirm --needed - < /root/optional-pkglist.txt >/dev/null 2>&1
+  
   dialog --title "Desktop Environment" --yesno "Do you wish to install a Desktop Environment/Window Manager now?\nYou can also install one later and finish this install now." 11 30
 
   if [[ "$?" == 0 ]]; then
@@ -47,6 +55,8 @@ opt-install(){
 dialog --title "Post-Installation" --msgbox "Post-Installation started!" 7 30 
 
 main-install
+
+xinitrc
 
 opt-install
 
