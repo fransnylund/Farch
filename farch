@@ -1,5 +1,14 @@
 #!/bin/bash
 # Frans' Arch Linux installer(Farch).
+#
+# Farch is an Arch Linux instaler tha can do both installation and post-installation.
+# It supports both UEFI and BIOS mode(this will be automatically detected)
+# and automatically installs the proper drivers. It also gives you an option
+# to install a DE/WM of choice.
+#
+# NOTE: Only this file "farch" has to be manually run. This script will
+# automatically run the other two scripts.
+
 
 
 efiSystem=0
@@ -149,6 +158,7 @@ init-chroot(){
   # start second script in chrooted space
   arch-chroot /mnt /root/farch-chroot
   # start third script in chrooted space
+
   dialog --title "Post-Installation" --yesno "Do you wish to do the post installation? This installs the display server, sound server, fonts and more." 10 30
   [[ "$?" -eq 0 ]] && arch-chroot /mnt /root/farch-post
 
@@ -162,14 +172,19 @@ finish(){
   umount /mnt >/dev/null 2>&1
 
   dialog --title "Installation Complete" --yesno "Installation completed! Do you wish to shutdown now?\n(Recommended)" 8 30 3>&1 1>&2 2>&3 3>&-
-  [[ "$?" -eq 0 ]] && shutdown now
+
+  if [[ "$?" -eq 0 ]]; then
+    dialog --title "Installation Complete" --msgbox "Remember to detach the installation media after shutting down and logging in to your own user after booting back up." 10 30
+    shutdown now
+  fi
+
 }
 
 
 
 # installing necessary things
 pacman -Syu --noconfirm >/dev/null 2>&1
-pacman -S dialog --noconfirm >/dev/null 2>&1
+pacman -S dialog git make --noconfirm >/dev/null 2>&1
 
 welcome
 

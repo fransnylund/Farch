@@ -38,13 +38,13 @@ xinitrc(){
 # optional packages
 opt-install(){
 
-  dialog --title "Optional Packages" --yesno "Do you wish to install the author's preferred programs?" 8 30
+  dialog --title "Optional Packages" --yesno "Do you wish to install the author's preferred programs?\n(This will take a long time to install depending on your internet)" 12 30
   [[ "$?" -eq 0 ]] && pacman -S --noconfirm --needed - < /root/optional-pkglist.txt >/dev/null 2>&1
   
   dialog --title "Desktop Environment" --yesno "Do you wish to install a Desktop Environment/Window Manager now?\nYou can also install one later and finish this install now." 11 30
 
   if [[ "$?" -eq 0 ]]; then
-    choice=$(dialog --title "Desktop Environment" --menu "Choose a Desktop Environment/Window Manager:" 20 35 5 1 "Xfce" 2 "Kde" 3 "i3" 4 "Qtile" 5 "More will be added soon" 3>&1 1>&2 2>&3 3>&-)
+    choice=$(dialog --title "Desktop Environment" --menu "Choose a Desktop Environment/Window Manager:" 20 35 5 1 "Xfce" 2 "Kde" 3 "i3 (fresh, no prebuild)" 4 "dwm (fresh, no prebuild)" 5 "More will be added soon" 3>&1 1>&2 2>&3 3>&-)
     
     case "$choice" in
       1) dialog --title "Installing" --msgbox "Installing Xfce" 7 30; pacman -S --noconfirm xfce4 xfce4-goodies >/dev/null 2>&1; \
@@ -53,8 +53,9 @@ opt-install(){
         echo $'#!/bin/sh\nexec startplasma-x11' > /home/$username/.xinitrc;;
       3) dialog --title "Installing" --msgbox "Installing i3" 7 30; pacman -S --noconfirm i3-gaps >/dev/null 2>&1; \
         echo $'#!/bin/sh\nexec i3' > /home/$username/.xinitrc;;
-      4) dialog --title "Installing" --msgbox "Installing Qtile" 7 30; pacman -S --noconfirm qtile python >/dev/null 2>&1; \
-        echo $'#!/bin/sh\nexec qtile' > /home/$username/.xinitrc;;
+      4) dialog --title "Installing" --msgbox "Installing dwm" 7 30; cd /home/$username; git clone https://git.suckless.org/dwm >/dev/null 2>&1; \
+        cd dwm; make; make install; \
+        echo $'#!/bin/sh\nexec dwm' > /home/$username/.xinitrc;;
     esac
   fi
 
