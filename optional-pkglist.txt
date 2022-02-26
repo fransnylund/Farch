@@ -19,6 +19,7 @@ imagemagick
 irssi
 lynx
 man-db
+man-pages
 mpv
 nasm
 nitrogen
