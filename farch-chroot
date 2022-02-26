@@ -107,7 +107,7 @@ user-setup(){
     username=$(dialog --title "Setting up a user" --inputbox "Create a new user:" 10 30 3>&1 1>&2 2>&3 3>&-)
   done
  
-  useradd -m "$username" >/dev/null 2>&1
+  useradd -m -G wheel,audio,video,optical,storage,http -s /bin/bash "$username" >/dev/null 2>&1
 
   while [[ 1 ]]; do
     userPassword1=$(dialog --title "Setting up a user password" --passwordbox "Create a user password:\n(at least four characters)" 10 30 3>&1 1>&2 2>&3 3>&-)
@@ -116,8 +116,6 @@ user-setup(){
   done
 
   passwd "$username" < <(echo "$userPassword1"; echo "$userPassword1") >/dev/null 2>&1
-
-  usermod -aG wheel,audio,video,optical,storage,http "$username" >/dev/null 2>&1
 
 }
 

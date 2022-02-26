@@ -29,7 +29,7 @@ welcome(){
   
   echo "$keyboardLayout" > keyboardLayout
   loadkeys $keyboardLayout
-  ls /sys/firmware/efi/efivars >/dev/null 2>&1 && efiSystem=1 && touch efiSystem
+  [[ -d /sys/firmware/efi/efivars ]] && efiSystem=1 && touch efiSystem
   timedatectl set-ntp true >/dev/null 2>&1
 
 }
@@ -88,13 +88,11 @@ partition-disk(){
   # partitioning, making and setting up swap partition
 
   if [[ "$efiSystem" -eq 1 ]]; then
-    #fdisk /dev/$partitionDisk < <(echo $'g\nn\n1\n\n+550M\nn\n2\n\n+2G\nn\n3\n\n\nt\n1\n1\nt\n2\n19\nw') >/dev/null 2>&1
     fdisk /dev/$partitionDisk < <(echo $'g\nn\n1\n\n+550M\nn\n2\n\n'$swapSize$'\nn\n3\n\n\nt\n1\n1\nt\n2\n19\nw') >/dev/null 2>&1
     mkfs.ext4 /dev/${partitionDisk}3 >/dev/null 2>&1
     mkswap /dev/${partitionDisk}2 >/dev/null 2>&1
     mkfs.fat -F 32 /dev/${partitionDisk}1 >/dev/null 2>&1
   else
-    #fdisk /dev/$partitionDisk < <(echo $'o\nn\np\n1\n\n+2G\nn\np\n2\n\n\nt\n1\n82\nw') >/dev/null 2>&1
     fdisk /dev/$partitionDisk < <(echo $'o\nn\np\n1\n\n'$swapSize$'\nn\np\n2\n\n\nt\n1\n82\nw') >/dev/null 2>&1
     mkfs.ext4 /dev/${partitionDisk}2 >/dev/null 2>&1
     mkswap /dev/${partitionDisk}1 >/dev/null 2>&1
@@ -183,7 +181,8 @@ finish(){
 
 
 # installing necessary things
-pacman -Syu --noconfirm >/dev/null 2>&1
+pacman -Sy archlinux-keyring --noconfirm >/dev/null 2>&1
+pacman -Su --noconfirm >/dev/null 2>&1
 pacman -S dialog git make --noconfirm >/dev/null 2>&1
 
 welcome
